@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	"github.com/gammazero/workerpool"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type ProviderList struct {
 	inchan    chan *model.ProviderInfo
 	providers map[peer.ID]*Provider
-	pq        []*Provider
+	pool      *workerpool.WorkerPool
 	m         sync.Mutex
 }
 
@@ -21,10 +22,9 @@ func NewProviderList(ctx context.Context) *ProviderList {
 	pl := &ProviderList{
 		inchan:    make(chan *model.ProviderInfo, 5),
 		providers: make(map[peer.ID]*Provider),
-		pq:        make([]*Provider, 0),
 	}
+	pl.pool = workerpool.New(5)
 	go pl.background(ctx)
-	go pl.providerLoop(ctx)
 	return pl
 }
 
@@ -41,7 +41,7 @@ func (pl *ProviderList) background(ctx context.Context) {
 			pl.m.Lock()
 			if _, ok := pl.providers[pi.AddrInfo.ID]; !ok {
 				pl.providers[pi.AddrInfo.ID] = NewProvider(pi.AddrInfo)
-				pl.pq = append(pl.pq, pl.providers[pi.AddrInfo.ID])
+				pl.pool.Submit(pl.task(ctx, pl.providers[pi.AddrInfo.ID]))
 			}
 			pl.m.Unlock()
 		case <-ctx.Done():
@@ -50,32 +50,26 @@ func (pl *ProviderList) background(ctx context.Context) {
 	}
 }
 
-func (pl *ProviderList) providerLoop(ctx context.Context) {
-	for {
+func (pl *ProviderList) task(ctx context.Context, p *Provider) func() {
+	return func() {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
-
-		has := false
-		var next *Provider
-		pl.m.Lock()
-		if len(pl.pq) > 0 {
-			has = true
-			next = pl.pq[0]
-			// move it to the back
-			pl.pq = pl.pq[1:]
-			pl.pq = append(pl.pq, next)
+		err := p.SyncHead(ctx)
+		if err != nil {
+			fmt.Printf("error syncing: %s\n", err)
 		}
-		pl.m.Unlock()
-		if !has {
-			time.Sleep(time.Second)
-		} else {
-			err := next.SyncHead(ctx)
-			if err != nil {
-				fmt.Printf("error syncing: %s\n", err)
-			}
-		}
+		go pl.reQueue(ctx, p)
 	}
+}
+
+func (pl *ProviderList) reQueue(ctx context.Context, p *Provider) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(time.Minute * 5):
+	}
+	pl.pool.Submit(pl.task(ctx, p))
 }

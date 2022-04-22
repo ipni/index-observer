@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/filecoin-project/go-legs v0.3.12
 	github.com/filecoin-project/storetheindex v0.4.9
+	github.com/gammazero/workerpool v1.1.2
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipld/go-ipld-prime v0.16.0
@@ -12,6 +13,7 @@ require (
 	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multicodec v0.4.0
+	github.com/multiformats/go-multihash v0.1.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/urfave/cli/v2 v2.4.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
@@ -38,6 +40,7 @@ require (
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/gammazero/deque v0.1.0 // indirect
 	github.com/go-logr/logr v1.2.1 // indirect
 	github.com/go-logr/stdr v1.2.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
@@ -121,7 +124,6 @@ require (
 	github.com/multiformats/go-multiaddr-dns v0.3.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multibase v0.0.3 // indirect
-	github.com/multiformats/go-multihash v0.1.0 // indirect
 	github.com/multiformats/go-multistream v0.2.2 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
