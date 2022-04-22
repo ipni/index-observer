@@ -6,10 +6,12 @@ require (
 	github.com/filecoin-project/go-legs v0.3.12
 	github.com/filecoin-project/storetheindex v0.4.9
 	github.com/ipfs/go-cid v0.1.0
+	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipld/go-ipld-prime v0.16.0
 	github.com/libp2p/go-libp2p v0.18.0-rc5
 	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/multiformats/go-multiaddr v0.5.0
+	github.com/multiformats/go-multicodec v0.4.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/urfave/cli/v2 v2.4.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
@@ -52,7 +54,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.2 // indirect
 	github.com/ipfs/go-block-format v0.0.3 // indirect
-	github.com/ipfs/go-datastore v0.5.1 // indirect
 	github.com/ipfs/go-graphsync v0.13.1 // indirect
 	github.com/ipfs/go-ipfs-pq v0.0.2 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.2 // indirect

@@ -21,6 +21,8 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"golang.org/x/time/rate"
 )
 
@@ -53,7 +55,12 @@ func NewProvider(id peer.AddrInfo) *Provider {
 }
 
 func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld.LinkSystem, err error) {
-	tls := ipld.LinkSystem{}
+	tls := cidlink.DefaultLinkSystem()
+	store := memstore.Store{Bag: map[string][]byte{}}
+	tls.SetReadStorage(&store)
+	tls.SetWriteStorage(&store)
+	tls.TrustedStorage = true
+
 	ls = &tls
 	rl := rate.NewLimiter(rate.Inf, 0)
 	if isHTTP(p.Identity) {
@@ -71,7 +78,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 		}
 		host.Peerstore().AddAddrs(p.Identity.ID, p.Identity.Addrs, time.Hour*24*7)
 		var sync *dtsync.Sync
-		ds := datastore.NewNullDatastore()
+		ds := datastore.NewMapDatastore()
 		sync, err = dtsync.NewSync(host, ds, tls, p.onBlock, func(_ peer.ID) *rate.Limiter { return rl })
 		if err != nil {
 			return
@@ -128,30 +135,29 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 			efsb.Insert("PreviousID", ssb.ExploreRecursiveEdge())
 		})
 	p.callback = func(c cid.Cid) {
-		fmt.Printf("sync loaded block.\n")
 		cnt++
 		head = c
 	}
 	for !done {
 		fmt.Printf(".\n")
-		store := memstore.Store{}
-		ls.SetReadStorage(&store)
-		ls.SetWriteStorage(&store)
 
 		sel := legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: p.LastHead})
-		fmt.Printf("calling 'sync'\n")
+		if p.LastHead.Equals(cid.Undef) {
+			mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
+			sel = legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
+		}
 		err = syncer.Sync(ctx, head, sel)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("sync didn't err. seeing if done.\n")
 		endNode, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: head}, basicnode.Prototype.Any)
 		if err != nil {
 			return err
 		}
 		prev, err := endNode.LookupByString("PreviousID")
 		if err != nil {
-			return err
+			done = true
+			continue
 		}
 		pl, err := prev.AsLink()
 		if err != nil {
