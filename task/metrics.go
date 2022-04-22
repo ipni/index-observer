@@ -17,7 +17,23 @@ var (
 		Name: "provider_count",
 		Help: "Number of providers",
 	}, []string{"indexer"})
+	providerChainLengths prometheus.Metric
 )
+
+type pcl_collector struct{}
+
+func (pcl pcl_collector) Describe(ch chan<- *prometheus.Desc) {
+	if providerChainLengths != nil {
+		d := providerChainLengths.Desc()
+		ch <- d
+	}
+}
+
+func (pcl pcl_collector) Collect(ch chan<- prometheus.Metric) {
+	if providerChainLengths != nil {
+		ch <- providerChainLengths
+	}
+}
 
 func bindMetrics() error {
 	// The private go-level metrics live in private.
@@ -36,6 +52,7 @@ func bindMetrics() error {
 			return err
 		}
 	}
+	metricRegistry.Register(pcl_collector{})
 	return nil
 }
 

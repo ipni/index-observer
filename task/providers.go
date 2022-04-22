@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/gammazero/workerpool"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ProviderList struct {
@@ -35,6 +36,29 @@ func (pl *ProviderList) ingest(pi []*model.ProviderInfo) {
 }
 
 func (pl *ProviderList) background(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second * 30):
+			}
+			pl.m.Lock()
+			// we do this so that each view of the histogram is a consistent snapshot, and doesn't count individual providers multiple times.
+			hist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "provider_chain_length",
+				Help:    "Length of the chain of providers",
+				Buckets: prometheus.ExponentialBuckets(2, 2, 40),
+			})
+			for _, p := range pl.providers {
+				if p.ChainLengthFromLastHead > 0 {
+					hist.Observe(float64(p.ChainLengthFromLastHead))
+				}
+			}
+			providerChainLengths = hist
+			pl.m.Unlock()
+		}
+	}()
 	for {
 		select {
 		case pi := <-pl.inchan:
@@ -69,7 +93,9 @@ func (pl *ProviderList) reQueue(ctx context.Context, p *Provider) {
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Minute * 5):
+	case <-time.After(time.Minute * 10):
 	}
+	pl.m.Lock()
 	pl.pool.Submit(pl.task(ctx, p))
+	pl.m.Unlock()
 }
