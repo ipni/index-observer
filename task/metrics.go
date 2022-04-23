@@ -18,20 +18,24 @@ var (
 		Help: "Number of providers",
 	}, []string{"indexer"})
 	providerChainLengths prometheus.Metric
+	providerEntryChunks  prometheus.Metric
+	providerEntryLengths prometheus.Metric
 )
 
-type pcl_collector struct{}
+type m_collector struct {
+	m *prometheus.Metric
+}
 
-func (pcl pcl_collector) Describe(ch chan<- *prometheus.Desc) {
-	if providerChainLengths != nil {
-		d := providerChainLengths.Desc()
+func (mc m_collector) Describe(ch chan<- *prometheus.Desc) {
+	if (*mc.m) != nil {
+		d := (*mc.m).Desc()
 		ch <- d
 	}
 }
 
-func (pcl pcl_collector) Collect(ch chan<- prometheus.Metric) {
-	if providerChainLengths != nil {
-		ch <- providerChainLengths
+func (mc m_collector) Collect(ch chan<- prometheus.Metric) {
+	if (*mc.m) != nil {
+		ch <- (*mc.m)
 	}
 }
 
@@ -52,7 +56,9 @@ func bindMetrics() error {
 			return err
 		}
 	}
-	metricRegistry.Register(pcl_collector{})
+	metricRegistry.Register(m_collector{&providerChainLengths})
+	metricRegistry.Register(m_collector{&providerEntryChunks})
+	metricRegistry.Register(m_collector{&providerEntryLengths})
 	return nil
 }
 

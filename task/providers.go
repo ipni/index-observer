@@ -50,12 +50,28 @@ func (pl *ProviderList) background(ctx context.Context) {
 				Help:    "Length of the chain of providers",
 				Buckets: prometheus.ExponentialBuckets(2, 2, 40),
 			})
+			chainChnkHist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "provider_entry_chunks",
+				Help:    "Length of sampled entry chunks",
+				Buckets: prometheus.ExponentialBuckets(1, 2, 20),
+			})
+			chainCntHist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "provider_entry_length",
+				Help:    "Length of sampled entries",
+				Buckets: prometheus.ExponentialBuckets(2, 4, 15),
+			})
 			for _, p := range pl.providers {
 				if p.ChainLengthFromLastHead > 0 {
 					hist.Observe(float64(p.ChainLengthFromLastHead))
+					if p.EntriesSampled > 0 {
+						chainChnkHist.Observe(float64(p.AverageEntryChunkCount))
+						chainCntHist.Observe(float64(p.AverageEntryCount))
+					}
 				}
 			}
 			providerChainLengths = hist
+			providerEntryChunks = chainChnkHist
+			providerEntryLengths = chainCntHist
 			pl.m.Unlock()
 		}
 	}()
@@ -65,7 +81,8 @@ func (pl *ProviderList) background(ctx context.Context) {
 			pl.m.Lock()
 			if _, ok := pl.providers[pi.AddrInfo.ID]; !ok {
 				pl.providers[pi.AddrInfo.ID] = NewProvider(pi.AddrInfo)
-				pl.pool.Submit(pl.task(ctx, pl.providers[pi.AddrInfo.ID]))
+				pl.pool.Submit(pl.headTask(ctx, pl.providers[pi.AddrInfo.ID]))
+				pl.pool.Submit(pl.sampleTask(ctx, pl.providers[pi.AddrInfo.ID]))
 			}
 			pl.m.Unlock()
 		case <-ctx.Done():
@@ -74,7 +91,7 @@ func (pl *ProviderList) background(ctx context.Context) {
 	}
 }
 
-func (pl *ProviderList) task(ctx context.Context, p *Provider) func() {
+func (pl *ProviderList) headTask(ctx context.Context, p *Provider) func() {
 	return func() {
 		select {
 		case <-ctx.Done():
@@ -85,17 +102,32 @@ func (pl *ProviderList) task(ctx context.Context, p *Provider) func() {
 		if err != nil {
 			fmt.Printf("error syncing: %s\n", err)
 		}
-		go pl.reQueue(ctx, p)
+		go pl.reQueue(ctx, p, 10*time.Minute, pl.headTask(ctx, p))
 	}
 }
 
-func (pl *ProviderList) reQueue(ctx context.Context, p *Provider) {
+func (pl *ProviderList) sampleTask(ctx context.Context, p *Provider) func() {
+	return func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		err := p.SyncEntries(ctx)
+		if err != nil {
+			fmt.Printf("error syncing: %s\n", err)
+		}
+		go pl.reQueue(ctx, p, 60*time.Minute, pl.sampleTask(ctx, p))
+	}
+}
+
+func (pl *ProviderList) reQueue(ctx context.Context, p *Provider, in time.Duration, what func()) {
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Minute * 10):
+	case <-time.After(in):
 	}
 	pl.m.Lock()
-	pl.pool.Submit(pl.task(ctx, p))
+	pl.pool.Submit(what)
 	pl.m.Unlock()
 }

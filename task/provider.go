@@ -3,8 +3,10 @@ package task
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-legs"
@@ -17,6 +19,7 @@ import (
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
+	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -37,19 +40,25 @@ type Provider struct {
 	LastHead                cid.Cid
 	LastSync                time.Time
 	ChainLengthFromLastHead uint64
+	// todo: cnt rm ads
+	// todo: cnt change-only ads
+	// todo: cnt amends to existing ctxid
 
-	EntriesSampled    uint64
-	AverageEntryCount float64
-	SampledEntries    map[time.Time][]cid.Cid
+	EntriesSampled         uint64
+	LastEntriesSampled     cid.Cid
+	AverageEntryCount      float64
+	AverageEntryChunkCount float64
+	SampledEntries         map[time.Time][]multihash.Multihash
 
-	callback func(c cid.Cid)
+	callbackMtx sync.Mutex
+	callback    func(c cid.Cid)
 }
 
 func NewProvider(id peer.AddrInfo) *Provider {
 	p := &Provider{
 		Identity:       id,
 		LastHead:       cid.Undef,
-		SampledEntries: make(map[time.Time][]cid.Cid),
+		SampledEntries: make(map[time.Time][]multihash.Multihash),
 	}
 	return p
 }
@@ -114,13 +123,20 @@ func topicFromSupportedProtocols(protos []string) string {
 }
 
 func (p *Provider) SyncHead(ctx context.Context) error {
+	// don't block if another task is currently talking to this provider
+	if !p.callbackMtx.TryLock() {
+		return nil
+	}
+	defer p.callbackMtx.Unlock()
 	fmt.Printf("beginning sync of %s\n", p.Identity.ID.Pretty())
-	syncer, ls, err := p.makeSyncer(ctx)
+	cctx, cncl := context.WithCancel(ctx)
+	defer cncl()
+	syncer, ls, err := p.makeSyncer(cctx)
 	if err != nil {
 		return err
 	}
 
-	newHead, err := syncer.GetHead(ctx)
+	newHead, err := syncer.GetHead(cctx)
 	if err != nil {
 		return err
 	}
@@ -146,7 +162,7 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 			mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
 			sel = legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
 		}
-		err = syncer.Sync(ctx, head, sel)
+		err = syncer.Sync(cctx, head, sel)
 		if err != nil {
 			return err
 		}
@@ -175,8 +191,123 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 	return nil
 }
 
+func (p *Provider) SyncEntries(ctx context.Context) error {
+	// don't block if another task is currently talking to this provider
+	if !p.callbackMtx.TryLock() {
+		return nil
+	}
+	defer p.callbackMtx.Unlock()
+
+	fmt.Printf("beginning entry sample of %s\n", p.Identity.ID.Pretty())
+	cctx, cncl := context.WithCancel(ctx)
+	defer cncl()
+	syncer, ls, err := p.makeSyncer(cctx)
+	if err != nil {
+		return err
+	}
+
+	newHead, err := syncer.GetHead(cctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("head at %s\n", newHead.String())
+
+	// don't re-sample
+	if p.LastEntriesSampled.Equals(newHead) {
+		return nil
+	}
+
+	head := newHead
+	// get the head advertisement.
+	err = syncer.Sync(cctx, head, selectorparse.CommonSelector_MatchPoint)
+	if err != nil {
+		return err
+	}
+	ad, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: head}, basicnode.Prototype.Any)
+	if err != nil {
+		return err
+	}
+	entryRoot, err := ad.LookupByString("Entries")
+	if err != nil {
+		return err
+	}
+	entryLnk, err := entryRoot.AsLink()
+	if err != nil {
+		return err
+	}
+	head = entryLnk.(cidlink.Link).Cid
+
+	done := false
+	cnt := 0
+	cnk := 0
+	lpCnt := 0
+	processedCid := cid.Undef
+	mhl := make([]multihash.Multihash, 0)
+	p.callback = func(c cid.Cid) {
+		if !c.Equals(processedCid) {
+			cnk++
+			lpCnt++
+			fmt.Printf("loading chunk in notify callback...\n")
+			chunk, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: c}, basicnode.Prototype.Any)
+			if err != nil {
+				return
+			}
+			entries, err := chunk.LookupByString("Entries")
+			if err != nil {
+				return
+			}
+			eli := entries.ListIterator()
+			for !eli.Done() {
+				_, v, _ := eli.Next()
+				cnt++
+				vb, err := v.AsBytes()
+				if err != nil {
+					continue
+				}
+				_, mhv, err := multihash.MHFromBytes(vb)
+				if err != nil {
+					continue
+				}
+				if len(mhl) < 100 {
+					mhl = append(mhl, mhv)
+				} else if rand.Intn(cnt) < 100 {
+					mhl[rand.Intn(100)] = mhv
+				}
+			}
+		}
+		fmt.Printf("finished cb\n")
+		processedCid = c
+		head = c
+	}
+	// go through entries
+	for !done {
+		fmt.Printf("E%s\n", head)
+		lpCnt = 0
+		mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
+		sel := legs.ExploreRecursiveWithStopNode(selector.RecursionLimitDepth(5000), selectorparse.CommonSelector_ExploreAllRecursively, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
+		err = syncer.Sync(cctx, head, sel)
+		if err != nil {
+			return err
+		}
+		if lpCnt < 1 {
+			done = true
+		}
+	}
+
+	p.LastEntriesSampled = newHead
+	p.AverageEntryCount = (float64(p.EntriesSampled)*p.AverageEntryCount + float64(cnt)) / float64(p.EntriesSampled+1)
+	p.AverageEntryChunkCount = (float64(p.EntriesSampled)*p.AverageEntryChunkCount + float64(cnk)) / float64(p.EntriesSampled+1)
+	p.EntriesSampled++
+	p.SampledEntries[time.Now()] = mhl
+
+	fmt.Printf("finished entry sample of %s, %d in chunk\n", p.Identity.ID.Pretty(), cnt)
+	return nil
+}
+
 func (p *Provider) onBlock(_ peer.ID, c cid.Cid) {
-	p.callback(c)
+	if p.callback != nil {
+		p.callback(c)
+	}
 }
 
 func isHTTP(p peer.AddrInfo) bool {
