@@ -140,7 +140,6 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("head at %s\n", newHead.String())
 
 	cnt := 0
 	head := newHead
@@ -155,8 +154,6 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 		head = c
 	}
 	for !done {
-		fmt.Printf(".\n")
-
 		sel := legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: p.LastHead})
 		if p.LastHead.Equals(cid.Undef) {
 			mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
@@ -210,7 +207,6 @@ func (p *Provider) SyncEntries(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("head at %s\n", newHead.String())
 
 	// don't re-sample
 	if p.LastEntriesSampled.Equals(newHead) {
@@ -247,7 +243,6 @@ func (p *Provider) SyncEntries(ctx context.Context) error {
 		if !c.Equals(processedCid) {
 			cnk++
 			lpCnt++
-			fmt.Printf("loading chunk in notify callback...\n")
 			chunk, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: c}, basicnode.Prototype.Any)
 			if err != nil {
 				return
@@ -275,7 +270,6 @@ func (p *Provider) SyncEntries(ctx context.Context) error {
 				}
 			}
 		}
-		fmt.Printf("finished cb\n")
 		processedCid = c
 		head = c
 	}
@@ -283,12 +277,13 @@ func (p *Provider) SyncEntries(ctx context.Context) error {
 	for !done {
 		fmt.Printf("E%s\n", head)
 		lpCnt = 0
-		mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
-		sel := legs.ExploreRecursiveWithStopNode(selector.RecursionLimitDepth(5000), selectorparse.CommonSelector_ExploreAllRecursively, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
+		ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+		sel := ssb.ExploreRecursive(selector.RecursionLimitDepth(500), ssb.ExploreAll(ssb.ExploreRecursiveEdge())).Node()
 		err = syncer.Sync(cctx, head, sel)
 		if err != nil {
 			return err
 		}
+		fmt.Printf("called sync. read %d entries\n", lpCnt)
 		if lpCnt < 1 {
 			done = true
 		}
