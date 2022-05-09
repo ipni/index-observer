@@ -1,6 +1,8 @@
 FROM golang:alpine AS builder
 
 RUN apk update && apk add --no-cache git ca-certificates && update-ca-certificates
+
+WORKDIR /go/src/index-observer
 COPY go.* .
 RUN go mod download
 COPY . .
