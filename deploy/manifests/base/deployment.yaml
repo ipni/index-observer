@@ -19,8 +19,8 @@ spec:
         - name: index-observer
           image: index-observer
           args:
-            - --port 8080
-            - --indexer https://cid.contact
+            - --port=8080
+            - --indexer=https://cid.contact
           ports:
             - name: metrics
               containerPort: 8080
