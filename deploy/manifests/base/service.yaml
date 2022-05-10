@@ -4,6 +4,7 @@ metadata:
   labels:
     app: index-observer
   name: index-observer
+  namespace: index-observer
 spec:
   clusterIP: None
   ports:
