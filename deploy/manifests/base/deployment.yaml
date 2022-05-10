@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: index-observer
+  namespace: index-observer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: index-observer
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: index-observer
+    spec:
+      containers:
+        - name: index-observer
+          image: index-observer
+          args:
+            - --port 8080
+            - --indexer https://cid.contact
+          ports:
+            - name: metrics
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              port: metrics
