@@ -6,6 +6,7 @@ on:
       - published
   push:
     paths-ignore:
+      - 'deploy'
       - 'README.md'
     branches:
       - main

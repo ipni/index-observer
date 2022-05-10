@@ -1,2 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
+resources:
+  - ../../base
+  - monitor.yaml
+
+replicas:
+  - name: index-observer
+    count: 1
+
+images:
+  - name: index-observer
+    newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/index-observer/index-observer # {"$imagepolicy": "index-observer:index-observer:name"}
+    newTag: 20220509124752-00177b5b5eb76c5b0e8121a781298225898d58d8 # {"$imagepolicy": "index-observer:index-observer:tag"}

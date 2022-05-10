@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: index-observer
+  labels:
+    app: index-observer
+spec:
+  selector:
+    matchLabels:
+      app: index-observer
+  namespaceSelector:
+    matchNames:
+      - index-observer
+  endpoints:
+    - path: /
+      port: metrics
