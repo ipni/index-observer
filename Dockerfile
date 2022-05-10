@@ -6,7 +6,7 @@ WORKDIR /go/src/index-observer
 COPY go.* ./
 RUN go mod download
 COPY . .
-RUN go build -o /index-observer
+RUN CGO_ENABLED=0 go build -o /index-observer
 
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
