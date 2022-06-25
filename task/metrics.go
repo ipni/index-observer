@@ -20,6 +20,9 @@ var (
 	providerChainLengths prometheus.Metric
 	providerEntryChunks  prometheus.Metric
 	providerEntryLengths prometheus.Metric
+
+	filProviderRate prometheus.Metric
+	filDealRate     prometheus.Metric
 )
 
 type m_collector struct {
@@ -59,6 +62,8 @@ func bindMetrics() error {
 	metricRegistry.Register(m_collector{&providerChainLengths})
 	metricRegistry.Register(m_collector{&providerEntryChunks})
 	metricRegistry.Register(m_collector{&providerEntryLengths})
+	metricRegistry.Register(m_collector{&filProviderRate})
+	metricRegistry.Register(m_collector{&filDealRate})
 	return nil
 }
 
