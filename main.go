@@ -22,6 +22,11 @@ func main() {
 				Name:  "indexer",
 				Usage: "indexers to monitor as urls",
 			},
+			&cli.StringFlag{
+				Name:  "filGatewayAddr",
+				Usage: "address to make requests for filecoin state",
+				Value: "https://api.node.glif.io/rpc/v0",
+			},
 		},
 		Action: task.Start,
 	}

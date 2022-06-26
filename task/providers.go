@@ -131,3 +131,14 @@ func (pl *ProviderList) reQueue(ctx context.Context, p *Provider, in time.Durati
 	pl.pool.Submit(what)
 	pl.m.Unlock()
 }
+
+func (pl *ProviderList) Get() []peer.AddrInfo {
+	pl.m.Lock()
+	defer pl.m.Unlock()
+
+	addrs := make([]peer.AddrInfo, 0, len(pl.providers))
+	for _, p := range pl.providers {
+		addrs = append(addrs, p.Identity)
+	}
+	return addrs
+}
