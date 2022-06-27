@@ -135,8 +135,8 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				Help: "Percentage market participants seen",
 			})
 			dealRate := prometheus.NewGauge(prometheus.GaugeOpts{
-				Name: "fil_provider_rate",
-				Help: "Percentage market participants seen",
+				Name: "fil_deal_rate",
+				Help: "Percentage deals seen",
 			})
 
 			providerRate.Set(float64(pn) / float64(pd))
