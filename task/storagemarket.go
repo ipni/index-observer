@@ -45,24 +45,23 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 	defer closer()
 
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Hour):
-		}
-
+		timeout := time.Hour
 		{
 			rctx, cncl := context.WithTimeout(ctx, 2*time.Minute)
 			defer cncl()
 
 			participants, err := node.StateMarketParticipants(rctx, types.EmptyTSK)
 			if err != nil {
-				continue
+				timeout = 5 * time.Minute
+				log.Printf("failed to get state market participants: %w\n", err)
+				goto NEXT
 			}
 
 			deals, err := node.StateMarketDeals(rctx, types.EmptyTSK)
 			if err != nil {
-				continue
+				timeout = 5 * time.Minute
+				log.Printf("failed to get state market deals: %w\n", err)
+				goto NEXT
 			}
 
 			needed := make(map[string]minerInfo)
@@ -79,11 +78,13 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				defer cncl()
 				am, err := address.NewFromString(m)
 				if err != nil {
+					log.Printf("failed to parse miner address: %w\n", err)
+
 					continue
 				}
 				mi, err := node.StateMinerInfo(lrctx, am, types.EmptyTSK)
 				if err != nil {
-					// todo: log
+					log.Printf("failed to get miner info: %w\n", err)
 					continue
 				}
 				needed[m] = minerInfo{*mi.PeerId, len(mi.Multiaddrs) > 0}
@@ -144,6 +145,12 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 
 			filProviderRate = providerRate
 			filDealRate = dealRate
+		}
+	NEXT:
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(timeout):
 		}
 	}
 }
