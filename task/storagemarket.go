@@ -94,7 +94,9 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 					log.Printf("failed to get miner info: %w\n", err)
 					continue
 				}
-				needed[m] = minerInfo{*mi.PeerId, len(mi.Multiaddrs) > 0}
+				if mi.PeerId != nil {
+					needed[m] = minerInfo{*mi.PeerId, len(mi.Multiaddrs) > 0}
+				}
 			}
 
 			m.lk.Lock()
