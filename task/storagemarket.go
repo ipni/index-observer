@@ -57,11 +57,18 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				goto NEXT
 			}
 
-			deals, err := node.StateMarketDeals(rctx, types.EmptyTSK)
+			head, err := node.ChainHead(rctx)
 			if err != nil {
 				timeout = 5 * time.Minute
-				log.Printf("failed to get state market deals: %w\n", err)
+				log.Printf("failed to get head: %s\n", err.Error())
 				goto NEXT
+			}
+
+			deals, err := node.StateMarketDeals(rctx, head.Key())
+			if err != nil {
+				//				timeout = 5 * time.Minute
+				log.Printf("failed to get state market deals: %s\n", err.Error())
+				//				goto NEXT
 			}
 
 			needed := make(map[string]minerInfo)
@@ -123,11 +130,13 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 
 			dn := 0
 			dd := 0
-			for _, d := range deals {
-				if _, ok := activeMinerAddress[d.Proposal.Provider]; ok {
-					dn++
+			if deals != nil {
+				for _, d := range deals {
+					if _, ok := activeMinerAddress[d.Proposal.Provider]; ok {
+						dn++
+					}
+					dd++
 				}
-				dd++
 			}
 
 			// account.
