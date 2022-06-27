@@ -6,9 +6,9 @@ WORKDIR /go/src/index-observer
 COPY go.* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /index-observer
+RUN go build -o /index-observer
 
-FROM scratch
+FROM golang:alpine
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /index-observer /index-observer
 ENTRYPOINT ["/index-observer"]
