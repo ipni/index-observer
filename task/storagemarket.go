@@ -167,19 +167,26 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			dn := 0
 			dd := 0
 			if deals != nil {
-				// be more agressive about pd as well:
 				ps := make(map[string]struct{})
-				pd = 0
 
 				for _, d := range deals {
 					if _, ok := participants[d.Proposal.Provider]; ok {
 						dn++
 					}
 					if _, ok := ps[d.Proposal.Provider]; !ok {
-						pd++
 						ps[d.Proposal.Provider] = struct{}{}
 					}
 					dd++
+				}
+
+				// be more agressive about pd as well - it's that the provider has a multiaddr, and has been seen making at least one deal
+				pd = 0
+				for p, _ := range participants {
+					if m.minerCache[p].hasMultiaddr {
+						if _, ok := ps[p]; ok {
+							pd++
+						}
+					}
 				}
 			}
 
