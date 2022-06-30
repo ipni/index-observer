@@ -27,6 +27,11 @@ func main() {
 				Usage: "address to make requests for filecoin state",
 				Value: "https://api.node.glif.io/rpc/v0",
 			},
+			&cli.StringFlag{
+				Name:  "dealEndpoint",
+				Usage: "http url to fetch market deals from",
+				Value: "https://marketdeals.s3.amazonaws.com/StateMarketDeals.json",
+			},
 		},
 		Action: task.Start,
 	}

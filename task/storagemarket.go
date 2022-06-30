@@ -1,7 +1,10 @@
 package task
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -18,6 +21,7 @@ import (
 
 type marketProvider struct {
 	filGatewayClient string
+	dealsEndpoint    string
 	minerCache       map[string]minerInfo
 	indexerClient    *finderhttpclient.Client
 	lk               sync.Mutex
@@ -28,12 +32,56 @@ type minerInfo struct {
 	hasMultiaddr bool
 }
 
-func NewMarketProvider(filGatewayURL string, indexerClient *finderhttpclient.Client) *marketProvider {
+func NewMarketProvider(filGatewayURL, dealsEndpoint string, indexerClient *finderhttpclient.Client) *marketProvider {
 	return &marketProvider{
 		filGatewayClient: filGatewayURL,
+		dealsEndpoint:    dealsEndpoint,
 		minerCache:       make(map[string]minerInfo),
 		indexerClient:    indexerClient,
 	}
+}
+
+type JCID struct {
+	Data string `json:"/"`
+}
+
+type dealProposal struct {
+	PieceCID             JCID
+	PieceSize            int
+	VerifiedDeal         bool
+	Client               string
+	Provider             string
+	Label                string
+	StartEpoch           int
+	EndEpoch             int
+	StoragePricePerEpoch string
+	ProviderCollateral   string
+	ClientCollateral     string
+}
+type deal struct {
+	Proposal dealProposal
+	State    json.RawMessage
+}
+
+type marketDeals map[string]deal
+
+func (m *marketProvider) getDeals(from string) (map[string]deal, error) {
+	resp, err := http.Get(from)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	buf := bytes.NewBuffer(nil)
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	deals := make(marketDeals)
+	err = json.Unmarshal(buf.Bytes(), &deals)
+	if err != nil {
+		return nil, err
+	}
+	return deals, nil
 }
 
 func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
@@ -57,18 +105,9 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				goto NEXT
 			}
 
-			head, err := node.ChainHead(rctx)
+			deals, err := m.getDeals(m.dealsEndpoint)
 			if err != nil {
-				timeout = 5 * time.Minute
-				log.Printf("failed to get head: %s\n", err.Error())
-				goto NEXT
-			}
-
-			deals, err := node.StateMarketDeals(rctx, head.Key())
-			if err != nil {
-				//				timeout = 5 * time.Minute
 				log.Printf("failed to get state market deals: %s\n", err.Error())
-				//				goto NEXT
 			}
 
 			needed := make(map[string]minerInfo)
@@ -108,13 +147,8 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			for mi, p := range m.minerCache {
 				localMinerMap[p.ID] = mi
 			}
-			activeMinerAddress := make(map[address.Address]struct{})
 			pd := 0
 			for p, _ := range participants {
-				pa, err := address.NewFromString(p)
-				if err == nil {
-					activeMinerAddress[pa] = struct{}{}
-				}
 				if m.minerCache[p].hasMultiaddr {
 					pd++
 				}
@@ -133,11 +167,26 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			dn := 0
 			dd := 0
 			if deals != nil {
+				ps := make(map[string]struct{})
+
 				for _, d := range deals {
-					if _, ok := activeMinerAddress[d.Proposal.Provider]; ok {
+					if _, ok := participants[d.Proposal.Provider]; ok {
 						dn++
 					}
+					if _, ok := ps[d.Proposal.Provider]; !ok {
+						ps[d.Proposal.Provider] = struct{}{}
+					}
 					dd++
+				}
+
+				// be more agressive about pd as well - it's that the provider has a multiaddr, and has been seen making at least one deal
+				pd = 0
+				for p, _ := range participants {
+					if m.minerCache[p].hasMultiaddr {
+						if _, ok := ps[p]; ok {
+							pd++
+						}
+					}
 				}
 			}
 
