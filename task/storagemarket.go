@@ -156,11 +156,14 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			m.lk.Unlock()
 
 			observed := pl.Get()
+			observedMap := make(map[string]struct{})
 
 			pn := 0
 			for _, i := range observed {
-				if _, ok := localMinerMap[i.ID]; ok {
+				if om, ok := localMinerMap[i.ID]; ok {
 					pn++
+					observedMap[om] = struct{}{}
+
 				}
 			}
 
@@ -170,7 +173,7 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				ps := make(map[string]struct{})
 
 				for _, d := range deals {
-					if _, ok := participants[d.Proposal.Provider]; ok {
+					if _, ok := observedMap[d.Proposal.Provider]; ok {
 						dn++
 					}
 					if _, ok := ps[d.Proposal.Provider]; !ok {
