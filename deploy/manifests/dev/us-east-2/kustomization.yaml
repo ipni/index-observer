@@ -10,4 +10,4 @@ replicas:
 images:
 - name: index-observer
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/index-observer/index-observer # {"$imagepolicy": "index-observer:index-observer:name"}
-  newTag: 20220630132934-3d75d67cdcec4b5bf3b3e2eddd238b3fe8416e54 # {"$imagepolicy": "index-observer:index-observer:tag"}
+  newTag: 20220630142059-6c3c1dd215261c82e2cbeecb2709bc72e180d3d5 # {"$imagepolicy": "index-observer:index-observer:tag"}
