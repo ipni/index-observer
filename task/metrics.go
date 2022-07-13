@@ -20,6 +20,9 @@ var (
 	providerChainLengths prometheus.Metric
 	providerEntryChunks  prometheus.Metric
 	providerEntryLengths prometheus.Metric
+	providerRMCounts     prometheus.Metric
+	providerChangeCounts prometheus.Metric
+	providerGSCount      prometheus.Metric
 
 	filProviderRate prometheus.Metric
 	filDealRate     prometheus.Metric
@@ -62,6 +65,9 @@ func bindMetrics() error {
 	metricRegistry.Register(m_collector{&providerChainLengths})
 	metricRegistry.Register(m_collector{&providerEntryChunks})
 	metricRegistry.Register(m_collector{&providerEntryLengths})
+	metricRegistry.Register(m_collector{&providerRMCounts})
+	metricRegistry.Register(m_collector{&providerChangeCounts})
+	metricRegistry.Register(m_collector{&providerGSCount})
 	metricRegistry.Register(m_collector{&filProviderRate})
 	metricRegistry.Register(m_collector{&filDealRate})
 	return nil

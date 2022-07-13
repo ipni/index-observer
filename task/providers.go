@@ -50,6 +50,20 @@ func (pl *ProviderList) background(ctx context.Context) {
 				Help:    "Length of the chain of providers",
 				Buckets: prometheus.ExponentialBuckets(2, 2, 40),
 			})
+			rmHist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "provider_rm_counmt",
+				Help:    "Number of removal advertisements",
+				Buckets: prometheus.ExponentialBuckets(2, 2, 30),
+			})
+			changeHist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "provider_change_counmt",
+				Help:    "Number of advertisements with no entries",
+				Buckets: prometheus.ExponentialBuckets(2, 2, 30),
+			})
+			gsCount := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "provider_graphsync_count",
+				Help: "Number of providers offering only graphsync for transport",
+			})
 			chainChnkHist := prometheus.NewHistogram(prometheus.HistogramOpts{
 				Name:    "provider_entry_chunks",
 				Help:    "Length of sampled entry chunks",
@@ -63,13 +77,21 @@ func (pl *ProviderList) background(ctx context.Context) {
 			for _, p := range pl.providers {
 				if p.ChainLengthFromLastHead > 0 {
 					hist.Observe(float64(p.ChainLengthFromLastHead))
+					rmHist.Observe(float64(p.RMCnt))
+					changeHist.Observe(float64(p.ChangeCnt))
 					if p.EntriesSampled > 0 {
 						chainChnkHist.Observe(float64(p.AverageEntryChunkCount))
 						chainCntHist.Observe(float64(p.AverageEntryCount))
 					}
 				}
+				if p.GSOnly {
+					gsCount.Add(1)
+				}
 			}
 			providerChainLengths = hist
+			providerRMCounts = rmHist
+			providerChangeCounts = changeHist
+			providerGSCount = gsCount
 			providerEntryChunks = chainChnkHist
 			providerEntryLengths = chainCntHist
 			pl.m.Unlock()

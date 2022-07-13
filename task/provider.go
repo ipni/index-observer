@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -25,6 +26,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-varint"
 	"github.com/willscott/index-observer/safemapds"
 	"golang.org/x/time/rate"
 )
@@ -40,10 +42,12 @@ type Provider struct {
 	LastHead                cid.Cid
 	LastSync                time.Time
 	ChainLengthFromLastHead uint64
-	// todo: cnt rm ads
-	// todo: cnt change-only ads
+	RMCnt                   uint64
+	ChangeCnt               uint64
 	// todo: cnt amends to existing ctxid
 
+	// is it a filecoin provider? (only provides graphsync)
+	GSOnly                 bool
 	EntriesSampled         uint64
 	LastEntriesSampled     cid.Cid
 	AverageEntryCount      float64
@@ -142,6 +146,8 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 	}
 
 	cnt := 0
+	rms := 0
+	changes := 0
 	head := newHead
 	done := false
 	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
@@ -152,6 +158,25 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 	p.callback = func(c cid.Cid) {
 		cnt++
 		head = c
+
+		thisNode, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: c}, basicnode.Prototype.Any)
+		if err != nil {
+			return
+		}
+		isRM, err := thisNode.LookupByString("IsRm")
+		if err != nil {
+			return
+		}
+		if irm, err := isRM.AsBool(); err == nil && irm {
+			rms++
+		}
+		entries, err := thisNode.LookupByString("Entries")
+		if err != nil {
+			return
+		}
+		if en, err := entries.AsLink(); err != nil || en.String() == "" {
+			changes++
+		}
 	}
 	for !done {
 		sel := legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: p.LastHead})
@@ -179,9 +204,29 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 		if pl.(cidlink.Link).Cid.Equals(p.LastHead) {
 			done = true
 		}
+		protocols, err := endNode.LookupByString("Metadata")
+		if err != nil {
+			log.Printf("failed to find expected metadata: %v", err)
+			continue
+		}
+		pb, err := protocols.AsBytes()
+		if err != nil {
+			log.Printf("metadata wasn't bytes type as expected: %v", err)
+			continue
+		}
+		first, _, err := varint.FromUvarint(pb)
+		if err != nil {
+			log.Printf("metadata didn't start with a varint: %v", err)
+			continue
+		}
+		if first == uint64(multicodec.TransportGraphsyncFilecoinv1) {
+			p.GSOnly = true
+		}
 	}
 
 	p.ChainLengthFromLastHead += uint64(cnt)
+	p.RMCnt += uint64(rms)
+	p.ChangeCnt += uint64(changes)
 	p.LastHead = newHead
 	p.LastSync = time.Now()
 	fmt.Printf("finished sync of %s, %d advertisements\n", p.Identity.ID.Pretty(), cnt)
