@@ -155,23 +155,23 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			}
 			m.lk.Unlock()
 
-			observed := pl.Get()
-			observedMap := make(map[string]struct{})
+			observed, oL := pl.Get()
+			observedMap := make(map[string]uint64)
 
 			pn := 0
-			for _, i := range observed {
-				if om, ok := localMinerMap[i.ID]; ok {
+			for i, j := range observed {
+				if om, ok := localMinerMap[j.ID]; ok {
 					pn++
-					observedMap[om] = struct{}{}
+					observedMap[om] = oL[i]
 
 				}
 			}
 
+			actualDn := uint64(0)
 			dn := 0
 			dd := 0
 			if deals != nil {
 				ps := make(map[string]struct{})
-
 				for _, d := range deals {
 					if _, ok := observedMap[d.Proposal.Provider]; ok {
 						dn++
@@ -187,6 +187,7 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				for p, _ := range participants {
 					if m.minerCache[p].hasMultiaddr {
 						if _, ok := ps[p]; ok {
+							actualDn += observedMap[p]
 							pd++
 						}
 					}
@@ -202,12 +203,19 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				Name: "fil_deal_rate",
 				Help: "Percentage deals seen",
 			})
+			dealCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "fil_deal_count",
+				Help: "deals seen",
+			}, []string{"type"})
 
 			providerRate.Set(float64(pn) / float64(pd))
 			dealRate.Set(float64(dn) / float64(dd))
+			dealCount.With(prometheus.Labels{"type": "onChain"}).Set(float64(dn))
+			dealCount.With(prometheus.Labels{"type": "adCount"}).Set(float64(actualDn))
 
 			filProviderRate = providerRate
 			filDealRate = dealRate
+			filDealCount = dealCount
 		}
 	NEXT:
 		select {

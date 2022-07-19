@@ -26,6 +26,7 @@ var (
 
 	filProviderRate prometheus.Metric
 	filDealRate     prometheus.Metric
+	filDealCount    *prometheus.GaugeVec
 )
 
 type m_collector struct {
@@ -70,6 +71,7 @@ func bindMetrics() error {
 	metricRegistry.Register(m_collector{&providerGSCount})
 	metricRegistry.Register(m_collector{&filProviderRate})
 	metricRegistry.Register(m_collector{&filDealRate})
+	metricRegistry.Register(filDealCount)
 	return nil
 }
 
