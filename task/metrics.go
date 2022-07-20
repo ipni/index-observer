@@ -26,7 +26,10 @@ var (
 
 	filProviderRate prometheus.Metric
 	filDealRate     prometheus.Metric
-	filDealCount    *prometheus.GaugeVec
+	filDealCount    = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "fil_deal_count",
+		Help: "deals seen",
+	}, []string{"type"})
 )
 
 type m_collector struct {
