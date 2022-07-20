@@ -203,19 +203,14 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				Name: "fil_deal_rate",
 				Help: "Percentage deals seen",
 			})
-			dealCount := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "fil_deal_count",
-				Help: "deals seen",
-			}, []string{"type"})
 
 			providerRate.Set(float64(pn) / float64(pd))
 			dealRate.Set(float64(dn) / float64(dd))
-			dealCount.With(prometheus.Labels{"type": "onChain"}).Set(float64(dn))
-			dealCount.With(prometheus.Labels{"type": "adCount"}).Set(float64(actualDn))
+			filDealCount.With(prometheus.Labels{"type": "onChain"}).Set(float64(dn))
+			filDealCount.With(prometheus.Labels{"type": "adCount"}).Set(float64(actualDn))
 
 			filProviderRate = providerRate
 			filDealRate = dealRate
-			filDealCount = dealCount
 		}
 	NEXT:
 		select {
