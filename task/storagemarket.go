@@ -58,14 +58,21 @@ type dealProposal struct {
 	ProviderCollateral   string
 	ClientCollateral     string
 }
+
+type dealState struct {
+	SectorStartEpoch int
+	LastUpdatedEpoch int
+	SlashEpoch       int
+}
+
 type deal struct {
 	Proposal dealProposal
-	State    json.RawMessage
+	State    dealState
 }
 
 type marketDeals map[string]deal
 
-func (m *marketProvider) getDeals(from string) (map[string]deal, error) {
+func (m *marketProvider) getDeals(from string, currentEpoch int64) (map[string]deal, error) {
 	resp, err := http.Get(from)
 	if err != nil {
 		return nil, err
@@ -81,7 +88,25 @@ func (m *marketProvider) getDeals(from string) (map[string]deal, error) {
 	if err != nil {
 		return nil, err
 	}
-	return deals, nil
+
+	// filter to active deals.
+	goodDeals := make(marketDeals)
+
+	for d, eal := range deals {
+		if eal.State.SectorStartEpoch == -1 {
+			continue
+		}
+		if int64(eal.Proposal.EndEpoch) < currentEpoch {
+			continue
+		}
+		if eal.State.SlashEpoch != -1 {
+			continue
+		}
+
+		goodDeals[d] = eal
+	}
+
+	return goodDeals, nil
 }
 
 func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
@@ -105,7 +130,14 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				goto NEXT
 			}
 
-			deals, err := m.getDeals(m.dealsEndpoint)
+			epoch, err := node.ChainHead(rctx)
+			if err != nil {
+				timeout = 5 * time.Minute
+				log.Printf("failed to get state market participants: %w\n", err)
+				goto NEXT
+			}
+
+			deals, err := m.getDeals(m.dealsEndpoint, int64(epoch.Height()))
 			if err != nil {
 				log.Printf("failed to get state market deals: %s\n", err.Error())
 			}
