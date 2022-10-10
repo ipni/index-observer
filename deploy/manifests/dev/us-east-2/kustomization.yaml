@@ -7,6 +7,8 @@ resources:
 replicas:
 - name: index-observer
   count: 1
+patchesStrategicMerge:
+- patch.yaml
 images:
 - name: index-observer
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/index-observer/index-observer # {"$imagepolicy": "index-observer:index-observer:name"}
