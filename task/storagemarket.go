@@ -13,7 +13,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 
 	finderhttpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
@@ -126,14 +126,14 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 			participants, err := node.StateMarketParticipants(rctx, types.EmptyTSK)
 			if err != nil {
 				timeout = 5 * time.Minute
-				log.Printf("failed to get state market participants: %w\n", err)
+				log.Printf("failed to get state market participants: %s\n", err)
 				goto NEXT
 			}
 
 			epoch, err := node.ChainHead(rctx)
 			if err != nil {
 				timeout = 5 * time.Minute
-				log.Printf("failed to get state market participants: %w\n", err)
+				log.Printf("failed to get state market participants: %s\n", err)
 				goto NEXT
 			}
 
@@ -156,17 +156,17 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				defer cncl()
 				am, err := address.NewFromString(m)
 				if err != nil {
-					log.Printf("failed to parse miner address: %w\n", err)
+					log.Printf("failed to parse miner address: %s\n", err)
 
 					continue
 				}
 				mi, err := node.StateMinerInfo(lrctx, am, types.EmptyTSK)
 				if err != nil {
-					log.Printf("failed to get miner info: %w\n", err)
+					log.Printf("failed to get miner info: %s\n", err)
 					continue
 				}
 				if mi.PeerId != nil {
-					needed[m] = minerInfo{*mi.PeerId, len(mi.Multiaddrs) > 0}
+					needed[m] = minerInfo{peer.ID(*mi.PeerId), len(mi.Multiaddrs) > 0}
 				}
 			}
 
@@ -180,7 +180,7 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 				localMinerMap[p.ID] = mi
 			}
 			pd := 0
-			for p, _ := range participants {
+			for p := range participants {
 				if m.minerCache[p].hasMultiaddr {
 					pd++
 				}
@@ -216,7 +216,7 @@ func (m *marketProvider) Track(ctx context.Context, pl *ProviderList) {
 
 				// be more agressive about pd as well - it's that the provider has a multiaddr, and has been seen making at least one deal
 				pd = 0
-				for p, _ := range participants {
+				for p := range participants {
 					if m.minerCache[p].hasMultiaddr {
 						if _, ok := ps[p]; ok {
 							actualDn += observedMap[p]
