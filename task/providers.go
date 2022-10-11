@@ -8,7 +8,7 @@ import (
 
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	"github.com/gammazero/workerpool"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -101,10 +101,14 @@ func (pl *ProviderList) background(ctx context.Context) {
 		select {
 		case pi := <-pl.inchan:
 			pl.m.Lock()
-			if _, ok := pl.providers[pi.AddrInfo.ID]; !ok {
-				pl.providers[pi.AddrInfo.ID] = NewProvider(pi.AddrInfo)
-				pl.pool.Submit(pl.headTask(ctx, pl.providers[pi.AddrInfo.ID]))
-				pl.pool.Submit(pl.sampleTask(ctx, pl.providers[pi.AddrInfo.ID]))
+			if _, ok := pl.providers[peer.ID(pi.AddrInfo.ID)]; !ok {
+				ai := peer.AddrInfo{
+					ID:    peer.ID(pi.AddrInfo.ID),
+					Addrs: pi.AddrInfo.Addrs,
+				}
+				pl.providers[peer.ID(pi.AddrInfo.ID)] = NewProvider(ai)
+				pl.pool.Submit(pl.headTask(ctx, pl.providers[peer.ID(pi.AddrInfo.ID)]))
+				pl.pool.Submit(pl.sampleTask(ctx, pl.providers[peer.ID(pi.AddrInfo.ID)]))
 			}
 			pl.m.Unlock()
 		case <-ctx.Done():

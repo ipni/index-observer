@@ -2,6 +2,8 @@ package task
 
 import (
 	"net/http"
+	"net/http/pprof"
+	"runtime"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -80,14 +82,24 @@ func bindMetrics() error {
 
 func StartMetrics(c *cli.Context) error {
 	bindMetrics()
+	mux := http.NewServeMux()
 	handler := promhttp.HandlerFor(metricRegistry, promhttp.HandlerOpts{Registry: metricRegistry})
+	mux.Handle("/metrics", handler)
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/gc", func(w http.ResponseWriter, req *http.Request) {
+		runtime.GC()
+	})
 	port := c.String("port")
 	if !strings.Contains(port, ":") {
 		port = ":" + port
 	}
 	s := http.Server{
 		Addr:    port,
-		Handler: handler,
+		Handler: mux,
 	}
 	go s.ListenAndServe()
 
