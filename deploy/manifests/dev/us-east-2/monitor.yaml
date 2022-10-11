@@ -12,5 +12,5 @@ spec:
     matchNames:
       - index-observer
   endpoints:
-    - path: /
+    - path: /metrics
       port: metrics
