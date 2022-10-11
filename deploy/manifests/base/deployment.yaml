@@ -27,3 +27,4 @@ spec:
           readinessProbe:
             httpGet:
               port: metrics
+              path: /ready

@@ -93,6 +93,7 @@ func StartMetrics(c *cli.Context) error {
 	mux.HandleFunc("/debug/pprof/gc", func(w http.ResponseWriter, req *http.Request) {
 		runtime.GC()
 	})
+	mux.HandleFunc("/ready", ready)
 	port := c.String("port")
 	if !strings.Contains(port, ":") {
 		port = ":" + port
