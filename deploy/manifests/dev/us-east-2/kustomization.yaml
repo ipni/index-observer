@@ -12,4 +12,4 @@ patchesStrategicMerge:
 images:
 - name: index-observer
   newName: 407967248065.dkr.ecr.us-east-2.amazonaws.com/index-observer/index-observer # {"$imagepolicy": "index-observer:index-observer:name"}
-  newTag: 20221011131427-540c2bb0df537648d899e56467accf3b06477605 # {"$imagepolicy": "index-observer:index-observer:tag"}
+  newTag: 20221209134353-2de48ec6e6b007798cdd818718b2a978dc7e7c27 # {"$imagepolicy": "index-observer:index-observer:tag"}
