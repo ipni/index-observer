@@ -22,7 +22,6 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p"
-	corepeer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
@@ -79,7 +78,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 	rl := rate.NewLimiter(rate.Inf, 0)
 	if isHTTP(p.Identity) {
 		sync := httpsync.NewSync(tls, &http.Client{}, p.onBlock)
-		syncer, err = sync.NewSyncer(corepeer.ID(p.Identity.ID), p.Identity.Addrs[0], rl)
+		syncer, err = sync.NewSyncer(p.Identity.ID, p.Identity.Addrs[0], rl)
 		go func() {
 			<-ctx.Done()
 			sync.Close()
@@ -105,7 +104,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 			return nil, nil, err
 		}
 		topic := topicFromSupportedProtocols(protos)
-		syncer = sync.NewSyncer(corepeer.ID(p.Identity.ID), topic, rl)
+		syncer = sync.NewSyncer(p.Identity.ID, topic, rl)
 		go func() {
 			<-ctx.Done()
 			sync.Close()
@@ -345,7 +344,7 @@ func (p *Provider) SyncEntries(ctx context.Context) error {
 	return nil
 }
 
-func (p *Provider) onBlock(_ corepeer.ID, c cid.Cid) {
+func (p *Provider) onBlock(_ peer.ID, c cid.Cid) {
 	if p.callback != nil {
 		p.callback(c)
 	}
