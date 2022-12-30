@@ -10,6 +10,9 @@ spec:
         - name: index-observer
           image: index-observer
           resources:
+            limits:
+              cpu: "3.5"
+              memory: 10Gi
             requests:
               cpu: "3.5"
               memory: 10Gi
