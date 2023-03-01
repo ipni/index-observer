@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ipni/index-observer/task"
 	"github.com/urfave/cli/v2"
-	"github.com/willscott/index-observer/task"
 )
 
 func main() {
@@ -21,16 +21,6 @@ func main() {
 			&cli.StringSliceFlag{
 				Name:  "indexer",
 				Usage: "indexers to monitor as urls",
-			},
-			&cli.StringFlag{
-				Name:  "filGatewayAddr",
-				Usage: "address to make requests for filecoin state",
-				Value: "https://api.node.glif.io/rpc/v0",
-			},
-			&cli.StringFlag{
-				Name:  "dealEndpoint",
-				Usage: "http url to fetch market deals from",
-				Value: "https://marketdeals.s3.amazonaws.com/StateMarketDeals.json",
 			},
 		},
 		Action: task.Start,
