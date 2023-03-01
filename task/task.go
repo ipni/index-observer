@@ -53,11 +53,6 @@ func startTracking(c *cli.Context, indexer string, pl *ProviderList) error {
 		return err
 	}
 
-	if c.String("filGatewayAddr") != "" {
-		mp := NewMarketProvider(c.String("filGatewayAddr"), c.String("dealEndpoint"), client)
-		go mp.Track(c.Context, pl)
-	}
-
 	ip := &indexProviders{
 		client: client,
 	}

@@ -14,6 +14,8 @@ import (
 	"github.com/filecoin-project/go-legs/dtsync"
 	"github.com/filecoin-project/go-legs/httpsync"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
@@ -27,7 +29,6 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/multiformats/go-varint"
-	"github.com/willscott/index-observer/safemapds"
 	"golang.org/x/time/rate"
 )
 
@@ -91,7 +92,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 		}
 		host.Peerstore().AddAddrs(p.Identity.ID, p.Identity.Addrs, time.Hour*24*7)
 		var sync *dtsync.Sync
-		ds := safemapds.NewMapDatastore()
+		ds := dssync.MutexWrap(datastore.NewMapDatastore())
 		sync, err = dtsync.NewSync(host, ds, tls, p.onBlock)
 		if err != nil {
 			return
