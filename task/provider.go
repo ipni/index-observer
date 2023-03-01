@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -207,17 +206,17 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 		}
 		protocols, err := endNode.LookupByString("Metadata")
 		if err != nil {
-			log.Printf("failed to find expected metadata: %v", err)
+			log.Errorf("failed to find expected metadata: %v", err)
 			continue
 		}
 		pb, err := protocols.AsBytes()
 		if err != nil {
-			log.Printf("metadata wasn't bytes type as expected: %v", err)
+			log.Errorf("metadata wasn't bytes type as expected: %v", err)
 			continue
 		}
 		first, _, err := varint.FromUvarint(pb)
 		if err != nil {
-			log.Printf("metadata didn't start with a varint: %v", err)
+			log.Errorf("metadata didn't start with a varint: %v", err)
 			continue
 		}
 		if first == uint64(multicodec.TransportGraphsyncFilecoinv1) {

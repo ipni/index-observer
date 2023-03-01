@@ -7,18 +7,40 @@ import (
 
 	finderhttpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
 	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/ipni/index-observer/progress_observer"
 	"github.com/urfave/cli/v2"
 )
+
+const (
+	observeFreq = 20 * time.Minute
+	timerFreq   = 10 * time.Minute
+)
+
+var log = logging.Logger("task")
 
 func Start(c *cli.Context) error {
 	if err := StartMetrics(c); err != nil {
 		return err
 	}
+
+	source := c.String("source")
+	target := c.String("target")
+
 	pl := NewProviderList(c.Context)
 	indexers := c.StringSlice("indexer")
 	wg := sync.WaitGroup{}
 	ec := make(chan error)
 	errSummary := make(chan error)
+
+	if source != "" && target != "" {
+		wg.Add(1)
+		go func() {
+			observerIndexers(c.Context, source, target)
+			wg.Done()
+		}()
+
+	}
 	go summarizeErrors(ec, errSummary)
 	for _, indexer := range indexers {
 		wg.Add(1)
@@ -47,6 +69,30 @@ func summarizeErrors(ec <-chan error, errSummary chan<- error) {
 	close(errSummary)
 }
 
+func observerIndexers(ctx context.Context, source, target string) {
+	var t *time.Timer
+	log.Infow("Started observing indexers", "source", source, "target", target)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := progress_observer.ObserveIndexers(source, target, observerMetrics)
+			if err != nil {
+				log.Error("Error observing indexers", "err", err)
+			}
+		}
+
+		t = time.NewTimer(observeFreq)
+		select {
+		case <-ctx.Done():
+			log.Infow("Finished observing indexers", "source", source, "target", target)
+			return
+		case <-t.C:
+		}
+	}
+}
+
 func startTracking(c *cli.Context, indexer string, pl *ProviderList) error {
 	client, err := finderhttpclient.New(indexer)
 	if err != nil {
@@ -62,7 +108,7 @@ func startTracking(c *cli.Context, indexer string, pl *ProviderList) error {
 	// provider query task
 	var t *time.Timer
 	for {
-		t = time.NewTimer(10 * time.Minute)
+		t = time.NewTimer(timerFreq)
 		select {
 		case <-c.Context.Done():
 			return c.Context.Err()
@@ -91,7 +137,7 @@ func (ip *indexProviders) trackProviders(ctx context.Context, indexer string, pl
 			providerCount.WithLabelValues(indexer).Set(float64(len(ip.providers)))
 		}
 
-		t = time.NewTimer(10 * time.Minute)
+		t = time.NewTimer(timerFreq)
 		select {
 		case <-ctx.Done():
 			return

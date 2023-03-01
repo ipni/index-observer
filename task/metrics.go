@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 
+	ometrics "github.com/ipni/index-observer/progress_observer/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -13,6 +14,7 @@ import (
 )
 
 var metricRegistry = prometheus.NewRegistry()
+var observerMetrics *ometrics.Metrics
 
 var (
 	providerCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -52,6 +54,7 @@ func (mc m_collector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func bindMetrics() error {
+	var err error
 	// The private go-level metrics live in private.
 	if err := metricRegistry.Register(collectors.NewGoCollector()); err != nil {
 		return err
@@ -77,11 +80,20 @@ func bindMetrics() error {
 	metricRegistry.Register(m_collector{&filProviderRate})
 	metricRegistry.Register(m_collector{&filDealRate})
 	metricRegistry.Register(filDealCount)
+	observerMetrics, err = ometrics.Register(metricRegistry)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func StartMetrics(c *cli.Context) error {
-	bindMetrics()
+	err := bindMetrics()
+	if err != nil {
+		return err
+	}
+
 	mux := http.NewServeMux()
 	handler := promhttp.HandlerFor(metricRegistry, promhttp.HandlerOpts{Registry: metricRegistry})
 	mux.Handle("/metrics", handler)
@@ -107,6 +119,8 @@ func StartMetrics(c *cli.Context) error {
 	go func() {
 		<-c.Context.Done()
 		s.Shutdown(c.Context)
+		observerMetrics.Unregister(c.Context)
+
 	}()
 	return nil
 }
