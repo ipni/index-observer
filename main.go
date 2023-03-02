@@ -22,6 +22,14 @@ func main() {
 				Name:  "indexer",
 				Usage: "indexers to monitor as urls",
 			},
+			&cli.StringFlag{
+				Name:  "source",
+				Usage: "source indexer to use in progress observer",
+			},
+			&cli.StringFlag{
+				Name:  "target",
+				Usage: "target indexer to use in progress observer",
+			},
 		},
 		Action: task.Start,
 	}
