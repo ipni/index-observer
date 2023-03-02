@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -69,10 +70,14 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 		log.Fatal(err)
 	}
 
+	m.RecordCount(len(sources), sourceName, "", metrics.TotalCount)
+
 	targets, err := targetClient.ListProviders(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	m.RecordCount(len(targets), targetName, "", metrics.TotalCount)
 
 	// group sources and targets into matches, mismatches, missing at source and missing at target
 	targetsMap := make(map[peer.ID]*model.ProviderInfo)
@@ -114,7 +119,6 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 	m.RecordCount(len(matches), sourceName, targetName, metrics.MatchCount)
 	m.RecordCount(len(unknwonByTarget), sourceName, targetName, metrics.UnknownCount)
 	m.RecordCount(len(unknownBySource), targetName, sourceName, metrics.UnknownCount)
-	m.RecordCount(len(matches)+len(mismatches)+len(unknwonByTarget)+len(unknownBySource), sourceName, targetName, metrics.TotalCount)
 
 	numJobs := len(mismatches)
 
@@ -179,6 +183,7 @@ func worker(ctx context.Context, m *metrics.Metrics, sourceName, targetName stri
 		case <-ctx.Done():
 			log.Infow("Worker timed out")
 		default:
+			start := time.Now()
 			lag, err := findLag(ctx, *j.source.Publisher, j.source.LastAdvertisement, j.target.LastAdvertisement)
 
 			if err != nil {
@@ -188,7 +193,7 @@ func worker(ctx context.Context, m *metrics.Metrics, sourceName, targetName stri
 				j.lag = lag
 			}
 			recordLag(ctx, m, j, sourceName, targetName)
-			log.Infof("Calculated lag %s", j.String())
+			log.Infow("Calculated lag", "lag", j.String(), "elapsed", time.Since(start))
 			results <- true
 		}
 	}

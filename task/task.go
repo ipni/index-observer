@@ -20,7 +20,8 @@ const (
 var log = logging.Logger("task")
 
 func Start(c *cli.Context) error {
-	logging.SetLogLevel("*", "info")
+	logging.SetLogLevel("*", "warn")
+	logging.SetLogLevel("progress_observer", "info")
 
 	if err := StartMetrics(c); err != nil {
 		return err

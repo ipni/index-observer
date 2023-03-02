@@ -42,7 +42,7 @@ const (
 func aggregationSelector(ik metric.InstrumentKind) aggregation.Aggregation {
 	if ik == metric.InstrumentKindHistogram {
 		return aggregation.ExplicitBucketHistogram{
-			Boundaries: []float64{0, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 1000, 2000, 5000},
+			Boundaries: []float64{0, 10, 50, 100, 200, 500, 1000, 2000, 5000, 10000},
 			NoMinMax:   false,
 		}
 	}
