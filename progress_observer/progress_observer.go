@@ -265,10 +265,8 @@ func findLag(ctx context.Context, addr peer.AddrInfo, scid, tcid cid.Cid) (int, 
 			}
 			iter++
 			if shead == cid.Undef && thead == cid.Undef {
-				break
+				return 0, errors.New("could not find neither target or source cids")
 			}
 		}
 	}
-
-	return 0, errors.New("could not find neither target or source cids")
 }
