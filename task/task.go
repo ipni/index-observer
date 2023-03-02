@@ -14,7 +14,7 @@ import (
 
 const (
 	countsObserveFreq = 10 * time.Minute
-	lagsObserveFreq   = 30 * time.Minute
+	lagsObserveFreq   = 20 * time.Minute
 	timerFreq         = 10 * time.Minute
 )
 

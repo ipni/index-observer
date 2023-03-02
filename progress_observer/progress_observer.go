@@ -30,6 +30,8 @@ const (
 	depth = 1000
 	// parallelism is a max number of concurrent goroutines
 	parallelism = 50
+	// maxAdChainFetchingTime is the maximum allowed time for a chain to be retrieved form a single provider
+	maxAdChainFetchingTime = 5 * time.Minute
 )
 
 type progressInfo struct {
@@ -182,13 +184,19 @@ func recordLag(ctx context.Context, m *metrics.Metrics, info *progressInfo, sour
 
 // worker identifies and records lag between two providers. Gets executed concurrently by many goroutines.
 func worker(ctx context.Context, m *metrics.Metrics, sourceName, targetName string, jobs <-chan *progressInfo, results chan<- bool) {
-	for j := range jobs {
+	for {
 		select {
 		case <-ctx.Done():
-			log.Infow("Worker timed out")
-		default:
+			return
+		case j, ok := <-jobs:
+			if !ok {
+				return
+			}
 			start := time.Now()
-			lag, err := findLag(ctx, *j.source.Publisher, j.source.LastAdvertisement, j.target.LastAdvertisement)
+
+			tctx, cancel := context.WithTimeout(ctx, maxAdChainFetchingTime)
+			lag, err := findLag(tctx, *j.source.Publisher, j.source.LastAdvertisement, j.target.LastAdvertisement)
+			cancel()
 
 			if err != nil {
 				log.Infow("Error reaching out to publisher", "publisher", j.source.Publisher.ID.String(), "err", err)
