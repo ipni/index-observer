@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	observeFreq = 10 * time.Minute
-	timerFreq   = 10 * time.Minute
+	countsObserveFreq = 10 * time.Minute
+	lagsObserveFreq   = 30 * time.Minute
+	timerFreq         = 10 * time.Minute
 )
 
 var log = logging.Logger("task")
@@ -39,7 +40,12 @@ func Start(c *cli.Context) error {
 	if source != "" && target != "" {
 		wg.Add(1)
 		go func() {
-			observerIndexers(c.Context, source, target)
+			observeLags(c.Context, source, target)
+			wg.Done()
+		}()
+		wg.Add(1)
+		go func() {
+			observeCounts(c.Context, source, target)
 			wg.Done()
 		}()
 
@@ -72,28 +78,59 @@ func summarizeErrors(ec <-chan error, errSummary chan<- error) {
 	close(errSummary)
 }
 
-func observerIndexers(ctx context.Context, source, target string) {
+func observeLags(ctx context.Context, source, target string) {
 	var t *time.Timer
-	log.Infow("Started observing indexers", "source", source, "target", target)
+	log.Infow("Started observing lags", "source", source, "target", target)
 
 	for {
+		start := time.Now()
 		select {
 		case <-ctx.Done():
-			log.Infow("Finished observing indexers", "source", source, "target", target)
+			log.Infow("Finished observing lags", "source", source, "target", target)
 			return
 		default:
-			tctx, cancel := context.WithTimeout(ctx, observeFreq)
-			err := progress_observer.ObserveIndexers(tctx, source, target, observerMetrics)
+			tctx, cancel := context.WithTimeout(ctx, lagsObserveFreq)
+			err := progress_observer.ObserveIndexers(tctx, source, target, observerMetrics, true)
 			if err != nil {
-				log.Error("Error observing indexers", "err", err)
+				log.Error("Error observing lags", "err", err)
 			}
 			cancel()
 		}
 
-		t = time.NewTimer(observeFreq)
+		// if lags reporting lasted for too long there is no need to wait
+		elapsed := time.Since(start)
+		if elapsed < lagsObserveFreq {
+			t = time.NewTimer(lagsObserveFreq - elapsed)
+			select {
+			case <-ctx.Done():
+				log.Infow("Finished observing lags", "source", source, "target", target)
+				return
+			case <-t.C:
+			}
+		}
+	}
+}
+
+func observeCounts(ctx context.Context, source, target string) {
+	var t *time.Timer
+	log.Infow("Started observing counts", "source", source, "target", target)
+
+	for {
 		select {
 		case <-ctx.Done():
-			log.Infow("Finished observing indexers", "source", source, "target", target)
+			log.Infow("Finished observing counts", "source", source, "target", target)
+			return
+		default:
+			err := progress_observer.ObserveIndexers(ctx, source, target, observerMetrics, false)
+			if err != nil {
+				log.Error("Error observing counts", "err", err)
+			}
+		}
+
+		t = time.NewTimer(countsObserveFreq)
+		select {
+		case <-ctx.Done():
+			log.Infow("Finished observing counts", "source", source, "target", target)
 			return
 		case <-t.C:
 		}

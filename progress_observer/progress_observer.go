@@ -43,7 +43,7 @@ func (s *progressInfo) String() string {
 	return fmt.Sprintf("peer: %s, lag: %d, unreachable: %v", s.source.AddrInfo.ID.String(), s.lag, s.unreachable)
 }
 
-func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metrics.Metrics) error {
+func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metrics.Metrics, reportLags bool) error {
 	sourceName, err := extractDomain(sourceUrl)
 	if err != nil {
 		return err
@@ -119,6 +119,10 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 	m.RecordCount(len(matches), sourceName, targetName, metrics.MatchCount)
 	m.RecordCount(len(unknwonByTarget), sourceName, targetName, metrics.UnknownCount)
 	m.RecordCount(len(unknownBySource), targetName, sourceName, metrics.UnknownCount)
+
+	if !reportLags {
+		return nil
+	}
 
 	numJobs := len(mismatches)
 
