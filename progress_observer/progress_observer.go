@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -18,7 +19,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-var log = logging.Logger("progress_observer")
+var (
+	log         = logging.Logger("progress_observer")
+	metricsLock sync.Mutex
+)
 
 const (
 	// depth is a depth of chain segment that is fetched form the publisher
@@ -38,8 +42,7 @@ func (s *progressInfo) String() string {
 	return fmt.Sprintf("peer: %s, lag: %d, unreachable: %v", s.source.AddrInfo.ID.String(), s.lag, s.unreachable)
 }
 
-func ObserveIndexers(sourceUrl, targetUrl string, m *metrics.Metrics) error {
-	ctx := context.Background()
+func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metrics.Metrics) error {
 	sourceName, err := extractDomain(sourceUrl)
 	if err != nil {
 		return err
@@ -122,7 +125,7 @@ func ObserveIndexers(sourceUrl, targetUrl string, m *metrics.Metrics) error {
 	actualParallelism := int(math.Min(float64(parallelism), float64(numJobs)))
 
 	for i := 1; i < actualParallelism; i++ {
-		go worker(jobs, results)
+		go worker(ctx, m, sourceName, targetName, jobs, results)
 	}
 
 	for i := 1; i < numJobs; i++ {
@@ -131,21 +134,19 @@ func ObserveIndexers(sourceUrl, targetUrl string, m *metrics.Metrics) error {
 	close(jobs)
 
 	for i := 1; i <= numJobs; i++ {
-		<-results
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-results:
+		}
 	}
 	close(results)
 
-	// report lags and unreachables
+	// report unreachables
 	unreachable := 0
 	for _, s := range mismatches {
 		if s.unreachable {
 			unreachable++
-			continue
-		}
-		if s.lag > 0 {
-			m.RecordLag(ctx, uint(s.lag), sourceName, targetName)
-		} else {
-			m.RecordLag(ctx, uint(-s.lag), targetName, sourceName)
 		}
 	}
 	m.RecordCount(unreachable, sourceName, targetName, metrics.UnreachableCount)
@@ -160,20 +161,36 @@ func extractDomain(u string) (string, error) {
 	return strings.TrimPrefix(url.Hostname(), "www."), nil
 }
 
-// worker identifies and records lag between two providers. Gets executed concurrently by many goroutines.
-func worker(jobs <-chan *progressInfo, results chan<- bool) {
-	ctx := context.Background()
-	for j := range jobs {
-		lag, err := findLag(ctx, *j.source.Publisher, j.source.LastAdvertisement, j.target.LastAdvertisement)
+func recordLag(ctx context.Context, m *metrics.Metrics, info *progressInfo, sourceName, targetName string) {
+	metricsLock.Lock()
+	defer metricsLock.Unlock()
 
-		if err != nil {
-			log.Infow("Error reaching out to publisher", "publisher", j.source.Publisher.ID.String(), "err", err)
-			j.unreachable = true
-		} else {
-			j.lag = lag
+	if info.lag > 0 {
+		m.RecordLag(ctx, uint(info.lag), sourceName, targetName)
+	} else {
+		m.RecordLag(ctx, uint(-info.lag), targetName, sourceName)
+	}
+}
+
+// worker identifies and records lag between two providers. Gets executed concurrently by many goroutines.
+func worker(ctx context.Context, m *metrics.Metrics, sourceName, targetName string, jobs <-chan *progressInfo, results chan<- bool) {
+	for j := range jobs {
+		select {
+		case <-ctx.Done():
+			log.Infow("Worker timed out")
+		default:
+			lag, err := findLag(ctx, *j.source.Publisher, j.source.LastAdvertisement, j.target.LastAdvertisement)
+
+			if err != nil {
+				log.Infow("Error reaching out to publisher", "publisher", j.source.Publisher.ID.String(), "err", err)
+				j.unreachable = true
+			} else {
+				j.lag = lag
+			}
+			recordLag(ctx, m, j, sourceName, targetName)
+			log.Infof("Calculated lag %s", j.String())
+			results <- true
 		}
-		log.Infof("Calculated lag %s", j.String())
-		results <- true
 	}
 }
 
@@ -181,19 +198,19 @@ func worker(jobs <-chan *progressInfo, results chan<- bool) {
 // If error is not nil then the value of the lag should be ignored.
 func findLag(ctx context.Context, addr peer.AddrInfo, scid, tcid cid.Cid) (int, error) {
 	// create client
-	c, err := internal.NewProviderClient(addr,
+	client, err := internal.NewProviderClient(addr,
 		internal.WithMaxSyncRetry(1),
 		internal.WithEntriesRecursionLimit(selector.RecursionLimitDepth(1)))
 
 	if err != nil {
 		return 0, err
 	}
-	defer c.Close()
+	defer client.Close()
 
 	// walkCidsFunc fetches cids chain up to the depth and tries to find "lookup" cid in it. If found - the function will return its position in the array.
 	// If not found - the function will return -1 and the last cid that it has checked.
 	walkCidsFunc := func(head, lookup cid.Cid) (int, cid.Cid, error) {
-		cids, err := c.GetCids(ctx, head, depth)
+		cids, err := client.GetCids(ctx, head, depth)
 		if err != nil {
 			return 0, cid.Undef, err
 		}
@@ -214,32 +231,37 @@ func findLag(ctx context.Context, addr peer.AddrInfo, scid, tcid cid.Cid) (int, 
 	thead := tcid
 
 	for {
-		// check if target cid exists in source chain
-		if shead != cid.Undef {
-			lag, shead, err = walkCidsFunc(shead, tcid)
-			if err != nil {
-				return 0, err
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		default:
+			// check if target cid exists in source chain
+			if shead != cid.Undef {
+				lag, shead, err = walkCidsFunc(shead, tcid)
+				if err != nil {
+					return 0, err
+				}
+
+				if lag >= 0 {
+					return iter*depth + lag, nil
+				}
 			}
 
-			if lag >= 0 {
-				return iter*depth + lag, nil
-			}
-		}
+			// check if source cid exists in target chain
+			if thead != cid.Undef {
+				lag, thead, err = walkCidsFunc(thead, scid)
+				if err != nil {
+					return 0, err
+				}
 
-		// check if source cid exists in target chain
-		if thead != cid.Undef {
-			lag, thead, err = walkCidsFunc(thead, scid)
-			if err != nil {
-				return 0, err
+				if lag >= 0 {
+					return -(iter*depth + lag), nil
+				}
 			}
-
-			if lag >= 0 {
-				return -(iter*depth + lag), nil
+			iter++
+			if shead == cid.Undef && thead == cid.Undef {
+				break
 			}
-		}
-		iter++
-		if shead == cid.Undef && thead == cid.Undef {
-			break
 		}
 	}
 

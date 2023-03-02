@@ -13,13 +13,15 @@ import (
 )
 
 const (
-	observeFreq = 20 * time.Minute
+	observeFreq = 10 * time.Minute
 	timerFreq   = 10 * time.Minute
 )
 
 var log = logging.Logger("task")
 
 func Start(c *cli.Context) error {
+	logging.SetLogLevel("*", "info")
+
 	if err := StartMetrics(c); err != nil {
 		return err
 	}
@@ -72,15 +74,19 @@ func summarizeErrors(ec <-chan error, errSummary chan<- error) {
 func observerIndexers(ctx context.Context, source, target string) {
 	var t *time.Timer
 	log.Infow("Started observing indexers", "source", source, "target", target)
+
 	for {
 		select {
 		case <-ctx.Done():
+			log.Infow("Finished observing indexers", "source", source, "target", target)
 			return
 		default:
-			err := progress_observer.ObserveIndexers(source, target, observerMetrics)
+			tctx, cancel := context.WithTimeout(ctx, observeFreq)
+			err := progress_observer.ObserveIndexers(tctx, source, target, observerMetrics)
 			if err != nil {
 				log.Error("Error observing indexers", "err", err)
 			}
+			cancel()
 		}
 
 		t = time.NewTimer(observeFreq)
