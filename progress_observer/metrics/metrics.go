@@ -107,7 +107,12 @@ func (m *Metrics) observe(ctx context.Context, observer cmetric.Observer) error 
 	defer m.countObservationsLock.Unlock()
 
 	for _, o := range m.countObservations {
-		observer.ObserveInt64(m.count, int64(o.count), attribute.String("source", o.source), attribute.String("target", o.target), attribute.String("kind", o.kind))
+		tags := []attribute.KeyValue{attribute.String("source", o.source), attribute.String("kind", o.kind)}
+		if len(o.target) > 0 {
+			tags = append(tags, attribute.String("target", o.target))
+		}
+
+		observer.ObserveInt64(m.count, int64(o.count), tags...)
 	}
 
 	m.countObservations = make([]countObservation, 0)
