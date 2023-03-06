@@ -32,9 +32,16 @@ type countObservation struct {
 }
 
 const (
-	TotalCount       = "total"
-	MatchCount       = "match"
-	UnknownCount     = "unknown"
+	// TotalCount is a tag for the total number of providers known to the indexer
+	TotalCount = "total"
+	// IngestLag is a tag for the sum of all Lags across all known providers. In other words it says how much advertisements
+	// the indexer needs to process in order to catch up with the currently known head
+	IngestLag = "ingest_lag"
+	// MatchCount is a tag for the number of providers that are known to both source and target indexers as well as have LastAdvertisement matching.
+	MatchCount = "match"
+	// UnknownCount is a tag for the number of providers that are known to the source but unknown to the target indexer
+	UnknownCount = "unknown"
+	// UnreachableCount is a tag for the number of providers that index-observer has failed to reach out to
 	UnreachableCount = "unreachable"
 )
 
@@ -64,7 +71,7 @@ func Register(reg ogprometheus.Registerer) (*Metrics, error) {
 	meter := provider.Meter("ipni/index_observer")
 
 	if m.lag, err = meter.Int64Histogram("ipni/index_observer/ingest_lag_diff",
-		instrument.WithDescription("Кelative difference between source and target in how far behind one is from the other in processing advertisements.")); err != nil {
+		instrument.WithDescription("Relative difference between source and target in how far behind one is from the other in processing advertisements.")); err != nil {
 		return nil, err
 	}
 
