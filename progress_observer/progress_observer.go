@@ -81,6 +81,9 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 
 	m.RecordCount(len(targets), targetName, "", metrics.TotalCount)
 
+	totalSourceLag := 0
+	totalTargetLag := 0
+
 	// group sources and targets into matches, mismatches, missing at source and missing at target
 	targetsMap := make(map[peer.ID]*model.ProviderInfo)
 	for _, target := range targets {
@@ -88,6 +91,7 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 			continue
 		}
 		targetsMap[target.AddrInfo.ID] = target
+		totalTargetLag += target.Lag
 	}
 
 	mismatches := make([]progressInfo, 0)
@@ -97,6 +101,7 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 		if source.AddrInfo.ID == "" {
 			continue
 		}
+		totalSourceLag += source.Lag
 		if target, ok := targetsMap[source.AddrInfo.ID]; ok {
 			if target.LastAdvertisement == source.LastAdvertisement {
 				matches = append(matches, source)
@@ -121,6 +126,8 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 	m.RecordCount(len(matches), sourceName, targetName, metrics.MatchCount)
 	m.RecordCount(len(unknwonByTarget), sourceName, targetName, metrics.UnknownCount)
 	m.RecordCount(len(unknownBySource), targetName, sourceName, metrics.UnknownCount)
+	m.RecordCount(totalSourceLag, sourceName, "", metrics.IngestLag)
+	m.RecordCount(totalTargetLag, targetName, "", metrics.IngestLag)
 
 	if !reportLags {
 		return nil
