@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -28,8 +29,8 @@ func Start(c *cli.Context) error {
 		return err
 	}
 
-	source := c.String("source")
-	target := c.String("target")
+	sources := c.StringSlice("sources")
+	targets := c.StringSlice("targets")
 
 	pl := NewProviderList(c.Context)
 	indexers := c.StringSlice("indexer")
@@ -37,18 +38,25 @@ func Start(c *cli.Context) error {
 	ec := make(chan error)
 	errSummary := make(chan error)
 
-	if source != "" && target != "" {
-		wg.Add(1)
-		go func() {
-			observeLags(c.Context, source, target)
-			wg.Done()
-		}()
-		wg.Add(1)
-		go func() {
-			observeCounts(c.Context, source, target)
-			wg.Done()
-		}()
+	if len(sources) != len(targets) {
+		return errors.New("sources and targets slices should be of the same length")
+	}
 
+	if len(sources) > 0 {
+		for i := range sources {
+			source := sources[i]
+			target := targets[i]
+			wg.Add(1)
+			go func() {
+				observeLags(c.Context, source, target)
+				wg.Done()
+			}()
+			wg.Add(1)
+			go func() {
+				observeCounts(c.Context, source, target)
+				wg.Done()
+			}()
+		}
 	}
 	go summarizeErrors(ec, errSummary)
 	for _, indexer := range indexers {
