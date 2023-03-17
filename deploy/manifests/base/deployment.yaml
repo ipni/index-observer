@@ -21,8 +21,8 @@ spec:
           args:
             - --port=8080
             - --indexer=https://cid.contact
-            - --source=https://dev.cid.contact
-            - --target=https://ago.dev.cid.contact
+            - --sources=https://dev.cid.contact,https://cid.contact
+            - --targets=https://ago.dev.cid.contact,https://inga.prod.cid.contact
           ports:
             - name: metrics
               containerPort: 8080
