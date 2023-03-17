@@ -18,11 +18,6 @@ spec:
       containers:
         - name: index-observer
           image: index-observer
-          args:
-            - --port=8080
-            - --indexer=https://cid.contact
-            - --source=https://dev.cid.contact
-            - --target=https://ago.dev.cid.contact
           ports:
             - name: metrics
               containerPort: 8080
