@@ -9,9 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/go-legs"
-	"github.com/filecoin-project/go-legs/dtsync"
-	"github.com/filecoin-project/go-legs/httpsync"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
@@ -22,6 +19,9 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
+	"github.com/ipni/go-libipni/dagsync"
+	dtsync "github.com/ipni/go-libipni/dagsync/dtsync"
+	httpsync "github.com/ipni/go-libipni/dagsync/httpsync"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -68,7 +68,7 @@ func NewProvider(id peer.AddrInfo) *Provider {
 	return p
 }
 
-func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld.LinkSystem, err error) {
+func (p *Provider) makeSyncer(ctx context.Context) (syncer dagsync.Syncer, ls *ipld.LinkSystem, err error) {
 	tls := cidlink.DefaultLinkSystem()
 	store := memstore.Store{Bag: map[string][]byte{}}
 	tls.SetReadStorage(&store)
@@ -79,7 +79,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 	rl := rate.NewLimiter(rate.Inf, 0)
 	if isHTTP(p.Identity) {
 		sync := httpsync.NewSync(tls, &http.Client{}, p.onBlock)
-		syncer, err = sync.NewSyncer(p.Identity.ID, p.Identity.Addrs[0], rl)
+		syncer, err = sync.NewSyncer(p.Identity.ID, p.Identity.Addrs, rl)
 		go func() {
 			<-ctx.Done()
 			sync.Close()
@@ -180,10 +180,10 @@ func (p *Provider) SyncHead(ctx context.Context) error {
 		}
 	}
 	for !done {
-		sel := legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: p.LastHead})
+		sel := dagsync.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: p.LastHead})
 		if p.LastHead.Equals(cid.Undef) {
 			mh, _ := multihash.Encode([]byte{}, multihash.IDENTITY)
-			sel = legs.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
+			sel = dagsync.ExploreRecursiveWithStop(selector.RecursionLimitDepth(5000), adSel, cidlink.Link{Cid: cid.NewCidV1(uint64(multicodec.Raw), mh)})
 		}
 		err = syncer.Sync(cctx, head, sel)
 		if err != nil {
