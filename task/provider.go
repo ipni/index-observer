@@ -24,6 +24,7 @@ import (
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
@@ -114,12 +115,12 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer legs.Syncer, ls *ipld
 	return
 }
 
-func topicFromSupportedProtocols(protos []string) string {
+func topicFromSupportedProtocols(protos []protocol.ID) string {
 	defaultTopic := "/indexer/ingest/mainnet"
 	re := regexp.MustCompile("^/legs/head/([^/0]+)")
 	for _, proto := range protos {
-		if re.MatchString(proto) {
-			defaultTopic = re.FindStringSubmatch(proto)[1]
+		if re.MatchString(string(proto)) {
+			defaultTopic = re.FindStringSubmatch(string(proto))[1]
 			break
 		}
 	}

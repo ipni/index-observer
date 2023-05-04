@@ -12,7 +12,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	selectorbuilder "github.com/ipld/go-ipld-prime/traversal/selector/builder"
-	"github.com/ipni/storetheindex/dagsync"
+	"github.com/ipni/go-libipni/dagsync"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -105,7 +105,7 @@ func (p *ProviderClient) GetCids(ctx context.Context, startCid cid.Cid, depth in
 func (p *ProviderClient) syncAdWithRetry(ctx context.Context, id cid.Cid, sel datamodel.Node) (cid.Cid, error) {
 	var attempt uint64
 	for {
-		id, err := p.sub.Sync(ctx, p.publisher.ID, id, sel, p.publisher.Addrs[0])
+		id, err := p.sub.Sync(ctx, p.publisher, id, sel)
 		if err == nil {
 			return id, nil
 		}
