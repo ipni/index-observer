@@ -1,6 +1,6 @@
 module github.com/ipni/index-observer
 
-go 1.18
+go 1.19
 
 require (
 	github.com/filecoin-project/go-legs v0.4.16
