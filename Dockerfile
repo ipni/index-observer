@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine AS builder
+FROM golang:1.19-bullseye AS builder
 
 RUN apk update && apk add --no-cache git ca-certificates make build-base && update-ca-certificates
 
