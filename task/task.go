@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	finderhttpclient "github.com/filecoin-project/storetheindex/api/v0/finder/client/http"
-	"github.com/filecoin-project/storetheindex/api/v0/finder/model"
 	logging "github.com/ipfs/go-log/v2"
+	finderhttpclient "github.com/ipni/go-libipni/find/client/http"
+	"github.com/ipni/go-libipni/find/model"
 	"github.com/ipni/index-observer/progress_observer"
 	"github.com/urfave/cli/v2"
 )
