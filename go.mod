@@ -1,6 +1,6 @@
 module github.com/ipni/index-observer
 
-go 1.20
+go 1.19
 
 require (
 	github.com/gammazero/workerpool v1.1.3

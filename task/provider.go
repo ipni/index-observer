@@ -117,7 +117,7 @@ func (p *Provider) makeSyncer(ctx context.Context) (syncer dagsync.Syncer, ls *i
 
 func topicFromSupportedProtocols(protos []protocol.ID) string {
 	defaultTopic := "/indexer/ingest/mainnet"
-	re := regexp.MustCompile("^/legs/head/[/]?([^/0]+)")
+	re := regexp.MustCompile("^/legs/head/[/]?(.+)/[0-9]+.[0-9]+.[0-9]+")
 	for _, proto := range protos {
 		if re.MatchString(string(proto)) {
 			defaultTopic = re.FindStringSubmatch(string(proto))[1]
