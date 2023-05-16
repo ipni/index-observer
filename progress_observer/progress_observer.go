@@ -58,25 +58,25 @@ func ObserveIndexers(ctx context.Context, sourceUrl, targetUrl string, m *metric
 	// create clients
 	sourceClient, err := finderhttpclient.New(sourceUrl)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	targetClient, err := finderhttpclient.New(targetUrl)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// fetch source and target providers
 	sources, err := sourceClient.ListProviders(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	m.RecordCount(len(sources), sourceName, "", metrics.TotalCount)
 
 	targets, err := targetClient.ListProviders(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	m.RecordCount(len(targets), targetName, "", metrics.TotalCount)
