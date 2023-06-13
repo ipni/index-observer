@@ -12,8 +12,8 @@ spec:
           args:
             - --port=8080
             - --indexer=https://cid.contact
-            - --sources=https://dev.cid.contact,https://cid.contact,https://dev.cid.contact,https://dev.cid.contact,https://dev.cid.contact
-            - --targets=https://ago.dev.cid.contact,https://inga.prod.cid.contact,https://alva.dev.cid.contact,https://bria.dev.cid.contact,https://cora.dev.cid.contact
+            - --sources=https://dev.cid.contact,https://cid.contact,https://cid.contact,https://cid.contact,https://cid.contact
+            - --targets=https://ago.dev.cid.contact,https://inga.prod.cid.contact,https://arya.prod.cid.contact,https://bala.prod.cid.contact,https://cera.prod.cid.contact
           resources:
             limits:
               cpu: "3.5"
